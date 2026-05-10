@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MedAuth AI — Pre-Autorización</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700&family=DM+Mono:wght@300;400;500&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0a0f1a;--surface:#111827;--surface2:#1a2332;--surface3:#1e2d42;
+  --border:rgba(99,140,200,0.15);--border2:rgba(99,140,200,0.28);
+  --accent:#2563eb;--accent2:#3b82f6;--accent-glow:rgba(37,99,235,0.18);
+  --teal:#0d9488;--teal-light:#14b8a6;--teal-glow:rgba(13,148,136,0.18);
+  --green:#10b981;--green-glow:rgba(16,185,129,0.13);
+  --amber:#f59e0b;--red:#ef4444;
+  --text:#e2e8f0;--text2:#94a3b8;--text3:#64748b;
+  --font-head:'Syne',sans-serif;--font-body:'DM Mono',monospace;--font-serif:'Instrument Serif',serif;
+}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--font-body);font-size:14px;line-height:1.6;overflow-x:hidden}
+body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(37,99,235,0.025) 1px,transparent 1px),linear-gradient(90deg,rgba(37,99,235,0.025) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;z-index:0}
+
+.app{position:relative;z-index:1;display:grid;grid-template-rows:auto 1fr;min-height:100vh;max-width:1100px;margin:0 auto;padding:0 24px}
+
+header{display:flex;align-items:center;justify-content:space-between;padding:20px 0 16px;border-bottom:1px solid var(--border)}
+.logo{display:flex;align-items:center;gap:12px}
+.logo-icon{width:38px;height:38px;background:linear-gradient(135deg,var(--accent),var(--teal));border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:20px}
+.logo-text{font-family:var(--font-head);font-size:19px;font-weight:700;letter-spacing:-0.02em}
+.logo-text span{color:var(--accent2)}
+.logo-sub{font-size:10px;color:var(--text3);letter-spacing:0.1em;text-transform:uppercase;margin-top:1px}
+.header-status{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--text3);padding:6px 14px;border:1px solid var(--border);border-radius:20px;background:var(--surface)}
+.status-dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+main{display:grid;grid-template-columns:300px 1fr;gap:20px;padding:20px 0 24px;align-items:start}
+
+/* ── Sidebar ── */
+.sidebar{}
+.panel-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px 20px;margin-bottom:14px}
+.panel-title{font-family:var(--font-head);font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.panel-title::before{content:'';display:block;width:3px;height:12px;background:var(--accent);border-radius:2px}
+
+/* Botones de paciente */
+.patient-list{display:flex;flex-direction:column;gap:8px}
+.patient-btn{
+  width:100%;display:flex;align-items:center;gap:12px;
+  padding:12px 14px;border-radius:10px;
+  border:1px solid var(--border);background:var(--surface2);
+  color:var(--text);font-family:var(--font-body);font-size:13px;
+  cursor:pointer;text-align:left;transition:all .2s;
+}
+.patient-btn:hover{border-color:var(--border2);background:var(--surface3);transform:translateX(2px)}
+.patient-btn.active{border-color:var(--accent2);background:rgba(37,99,235,0.09)}
+.patient-btn:disabled{opacity:.4;cursor:not-allowed;transform:none}
+.p-avatar{width:34px;height:34px;border-radius:8px;background:linear-gradient(135deg,var(--accent),var(--teal));display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:white;flex-shrink:0;font-family:var(--font-head)}
+.p-name{font-size:13px;font-weight:500;flex:1}
+.urgency-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.urgency-dot.urgente{background:var(--red);box-shadow:0 0 5px var(--red)}
+.urgency-dot.electiva{background:var(--green);box-shadow:0 0 5px var(--green)}
+
+.loading-spinner{display:none;width:14px;height:14px;border:2px solid rgba(255,255,255,0.2);border-top-color:white;border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.caps-card{background:rgba(13,148,136,0.04);border-color:rgba(13,148,136,0.2)}
+.caps-card .panel-title{color:var(--teal-light)}
+.cap-item{font-size:12px;color:var(--text2);line-height:2}
+
+/* ── Chat ── */
+.chat-panel{background:var(--surface);border:1px solid var(--border);border-radius:12px;display:flex;flex-direction:column;height:calc(100vh - 120px);min-height:520px;overflow:hidden}
+.chat-header{padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.chat-title{font-family:var(--font-head);font-size:13px;font-weight:600;display:flex;align-items:center;gap:8px}
+.chat-badge{font-size:10px;padding:2px 8px;border-radius:10px;background:var(--teal-glow);color:var(--teal-light);border:1px solid rgba(13,148,136,0.25)}
+.clear-btn{font-size:11px;color:var(--text3);background:none;border:1px solid var(--border);border-radius:6px;padding:4px 10px;cursor:pointer;font-family:var(--font-body);transition:color .2s,border-color .2s}
+.clear-btn:hover{color:var(--text2);border-color:var(--border2)}
+
+.messages{flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:16px;scroll-behavior:smooth}
+.messages::-webkit-scrollbar{width:4px}.messages::-webkit-scrollbar-thumb{background:var(--border2);border-radius:4px}
+
+.empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:10px;color:var(--text3);text-align:center}
+.empty-icon{font-size:38px;opacity:.25}
+.empty-title{font-family:var(--font-serif);font-size:17px;font-style:italic;color:var(--text2)}
+.empty-sub{font-size:12px;max-width:240px;line-height:1.7}
+
+.msg{display:flex;gap:12px;animation:fadeIn .3s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.msg.user{flex-direction:row-reverse}
+.msg-avatar{width:30px;height:30px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0}
+.msg.user .msg-avatar{background:var(--surface3);border:1px solid var(--border2)}
+.msg.ai .msg-avatar{background:linear-gradient(135deg,var(--accent),var(--teal))}
+.msg-content{max-width:84%;display:flex;flex-direction:column;gap:4px}
+.msg.user .msg-content{align-items:flex-end}
+.msg-sender{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em}
+.msg-bubble{padding:11px 15px;border-radius:12px;font-size:13px;line-height:1.75;white-space:pre-wrap;word-break:break-word}
+.msg.user .msg-bubble{background:var(--surface3);border:1px solid var(--border2);border-top-right-radius:4px}
+.msg.ai .msg-bubble{background:var(--surface2);border:1px solid var(--border);border-top-left-radius:4px}
+
+.result-approved{display:inline-flex;align-items:center;gap:6px;padding:5px 13px;background:var(--green-glow);border:1px solid rgba(16,185,129,0.25);border-radius:20px;color:var(--green);font-size:11px;font-weight:500;margin-top:8px}
+.result-pending{display:inline-flex;align-items:center;gap:6px;padding:5px 13px;background:rgba(245,158,11,0.09);border:1px solid rgba(245,158,11,0.25);border-radius:20px;color:var(--amber);font-size:11px;font-weight:500;margin-top:8px}
+.result-rejected{display:inline-flex;align-items:center;gap:6px;padding:5px 13px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);border-radius:20px;color:#fca5a5;font-size:11px;font-weight:500;margin-top:8px}
+.error-msg{padding:11px 14px;background:rgba(239,68,68,0.07);border:1px solid rgba(239,68,68,0.18);border-radius:10px;color:#fca5a5;font-size:12px;line-height:1.6}
+
+.typing-indicator{display:flex;align-items:center;gap:5px;padding:11px 15px;background:var(--surface2);border:1px solid var(--border);border-radius:12px;border-top-left-radius:4px;width:fit-content}
+.typing-dot{width:6px;height:6px;background:var(--accent2);border-radius:50%;animation:typing 1.2s infinite}
+.typing-dot:nth-child(2){animation-delay:.2s}.typing-dot:nth-child(3){animation-delay:.4s}
+@keyframes typing{0%,60%,100%{transform:translateY(0);opacity:.4}30%{transform:translateY(-6px);opacity:1}}
+
+.quick-prompts{display:flex;flex-wrap:wrap;gap:6px;padding:0 18px 12px}
+.quick-btn{font-size:11px;padding:5px 11px;border-radius:16px;border:1px solid var(--border);background:var(--surface2);color:var(--text2);cursor:pointer;font-family:var(--font-body);transition:border-color .2s,color .2s;white-space:nowrap}
+.quick-btn:hover{border-color:var(--accent2);color:var(--accent2)}
+
+.input-area{padding:14px 18px;border-top:1px solid var(--border);display:flex;gap:10px;flex-shrink:0}
+.chat-input{flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:var(--font-body);font-size:13px;padding:10px 14px;outline:none;resize:none;min-height:42px;max-height:120px;transition:border-color .2s}
+.chat-input:focus{border-color:var(--accent2)}
+.send-btn{width:42px;height:42px;background:var(--accent);border:none;border-radius:10px;color:white;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .2s,transform .15s;flex-shrink:0;font-size:17px}
+.send-btn:hover{background:var(--accent2);transform:scale(1.05)}.send-btn:disabled{opacity:.3;cursor:not-allowed;transform:none}
+
+.footer-note{text-align:center;font-size:10px;color:var(--text3);padding:8px 0 16px;letter-spacing:.05em}
+@media(max-width:700px){main{grid-template-columns:1fr}.chat-panel{height:55vh}}
+</style>
+</head>
+<body>
+<div class="app">
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">🏥</div>
+    <div>
+      <div class="logo-text">Med<span>Auth</span> AI</div>
+      <div class="logo-sub">Pre-Autorización Quirúrgica · RAG + CIE-10</div>
+    </div>
+  </div>
+  <div class="header-status"><div class="status-dot"></div>Agente activo</div>
+</header>
+
+<main>
+<aside class="sidebar">
+
+  <div class="panel-card">
+    <div class="panel-title">Pacientes</div>
+    <div class="patient-list" id="patientList"></div>
+  </div>
+
+  <div class="panel-card caps-card">
+    <div class="panel-title">Capacidades del agente</div>
+    <div class="cap-item">
+      ✓ Valida cobertura CIE-10 vs Manual<br>
+      ✓ Verifica carencias de póliza<br>
+      ✓ Emite certificados de aprobación<br>
+      ✓ Solicita documentos faltantes<br>
+      ✓ Gestión de excepciones autónoma
+    </div>
+  </div>
+
+</aside>
+
+<section class="chat-panel">
+  <div class="chat-header">
+    <div class="chat-title">🤖 Agente Pre-Autorización <span class="chat-badge">RAG + CIE-10</span></div>
+    <button class="clear-btn" onclick="clearChat()">Limpiar</button>
+  </div>
+
+  <div class="messages" id="messages">
+    <div class="empty-state" id="emptyState">
+      <div class="empty-icon">🏥</div>
+      <div class="empty-title">Listo para auditar</div>
+      <div class="empty-sub">Selecciona un paciente para iniciar la pre-autorización.</div>
+    </div>
+  </div>
+
+  <div class="quick-prompts">
+    <button class="quick-btn" onclick="quickPrompt('¿Cuáles son los requisitos de carencia para cirugía urgente?')">📋 Carencias</button>
+    <button class="quick-btn" onclick="quickPrompt('¿Qué documentos se requieren para autorizar una cirugía electiva?')">📄 Documentos</button>
+    <button class="quick-btn" onclick="quickPrompt('¿Cuánto tarda el proceso de pre-autorización?')">⏱ Tiempos</button>
+  </div>
+
+  <div class="input-area">
+    <textarea class="chat-input" id="chatInput" placeholder="Escribe una pregunta al agente..." rows="1"
+      onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+    <button class="send-btn" id="sendBtn" onclick="sendMessage()">➤</button>
+  </div>
+</section>
+</main>
+
+<div class="footer-note">MedAuth AI · Agente de Pre-Autorización · © Domenica Luna</div>
+</div>
+
+<script>
+// ════════════════════════════════════════════════════════
+// CONFIGURACIÓN — solo cambia esta URL cuando levantes el proxy
+// ════════════════════════════════════════════════════════
+const PROXY_URL = "http://localhost:8000/chat";
+// Si lo desplegás en Railway/Render, cambia por:
+// const PROXY_URL = "https://tu-proxy.railway.app/chat";
+
+// ════════════════════════════════════════════════════════
+// PACIENTES — solo nombre y urgencia, sin datos clínicos
+// ════════════════════════════════════════════════════════
+const PATIENTS = [
+  { name: "María Torres",   urgencia: "electiva", query: "Paciente: María Torres | CIE-10: K80.2 | Procedimiento: Colecistectomía laparoscópica | Diagnóstico: Colelitiasis sintomática | Tipo: Electiva. Por favor valida la cobertura, verifica carencias y emite la pre-autorización o indica documentos faltantes." },
+  { name: "Juan Pérez",     urgencia: "electiva", query: "Paciente: Juan Pérez | CIE-10: M16.1 | Procedimiento: Artroplastia total de cadera | Diagnóstico: Coxartrosis grado IV | Tipo: Electiva. Por favor valida la cobertura, verifica carencias y emite la pre-autorización o indica documentos faltantes." },
+  { name: "Ana Rodríguez",  urgencia: "urgente",  query: "Paciente: Ana Rodríguez | CIE-10: N20.0 | Procedimiento: Nefrolitotomía percutánea | Diagnóstico: Litiasis renal bilateral | Tipo: Urgente. Por favor valida la cobertura, verifica carencias y emite la pre-autorización o indica documentos faltantes." },
+  { name: "Carlos Mendoza", urgencia: "electiva", query: "Paciente: Carlos Mendoza | CIE-10: H25.1 | Procedimiento: Facoemulsificación con LIO | Diagnóstico: Catarata subcapsular posterior | Tipo: Electiva. Por favor valida la cobertura, verifica carencias y emite la pre-autorización o indica documentos faltantes." },
+  { name: "Sofía Castillo", urgencia: "urgente",  query: "Paciente: Sofía Castillo | CIE-10: K40.9 | Procedimiento: Hernioplastia inguinal laparoscópica | Diagnóstico: Hernia inguinal con riesgo de incarceración | Tipo: Urgente. Por favor valida la cobertura, verifica carencias y emite la pre-autorización o indica documentos faltantes." },
+];
+
+let conversationId = null;
+let isLoading = false;
+
+// ── Render de pacientes ──
+function initPatients() {
+  const list = document.getElementById('patientList');
+  PATIENTS.forEach((p, i) => {
+    const initials = p.name.split(' ').map(w => w[0]).join('').slice(0, 2);
+    const btn = document.createElement('button');
+    btn.className = 'patient-btn';
+    btn.id = 'pbtn-' + i;
+    btn.innerHTML = `
+      <div class="p-avatar">${initials}</div>
+      <span class="p-name">${p.name}</span>
+      <div class="loading-spinner" id="spin-${i}"></div>
+      <div class="urgency-dot ${p.urgencia}" title="${p.urgencia}"></div>
+    `;
+    btn.onclick = () => requestAuth(i);
+    list.appendChild(btn);
+  });
+}
+
+// ── Solicitar pre-autorización por paciente ──
+async function requestAuth(i) {
+  if (isLoading) return;
+  const p = PATIENTS[i];
+  // Resetea conversación para nuevo paciente
+  conversationId = null;
+  // Resalta botón activo
+  document.querySelectorAll('.patient-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('pbtn-' + i).classList.add('active');
+  await sendMessage(p.query, i);
+}
+
+// ── Llamada al proxy ──
+async function callProxy(query) {
+  const res = await fetch(PROXY_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query, conversation_id: conversationId || '' }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Error ${res.status}`);
+  }
+  const data = await res.json();
+  if (data.conversation_id) conversationId = data.conversation_id;
+  return data.answer || 'Sin respuesta del agente.';
+}
+
+// ── Formateo de respuesta ──
+function formatResponse(raw) {
+  let t = raw
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>')
+    .replace(/\*(.*?)\*/g,'<em>$1</em>')
+    .replace(/`(.*?)`/g,'<code style="background:rgba(37,99,235,0.13);padding:1px 5px;border-radius:3px;font-size:12px">$1</code>');
+  if (/aprobad|autorizado|pre.?autorizaci[oó]n.*otorgada|cobertura.*confirmada/i.test(raw))
+    t += '<br><span class="result-approved">✅ PRE-AUTORIZACIÓN APROBADA</span>';
+  else if (/pendiente|documentos?\s+faltante|requiere.*documento|solicitud.*adicional/i.test(raw))
+    t += '<br><span class="result-pending">⏳ DOCUMENTACIÓN PENDIENTE</span>';
+  else if (/rechazad|no.*cubierto|sin cobertura|excluido/i.test(raw))
+    t += '<br><span class="result-rejected">❌ NO CUBIERTO</span>';
+  return t;
+}
+
+// ── Mensajes ──
+function removeEmpty() { const e = document.getElementById('emptyState'); if (e) e.remove(); }
+
+function addMessage(role, text, isError = false) {
+  removeEmpty();
+  const msgs = document.getElementById('messages');
+  const div = document.createElement('div');
+  div.className = `msg ${role}`;
+  const avatar = role === 'ai' ? '🤖' : '👤';
+  const sender = role === 'ai' ? 'MedAuth AI' : 'Tú';
+  if (isError) {
+    div.innerHTML = `<div class="msg-avatar">${avatar}</div><div class="msg-content"><div class="msg-sender">${sender}</div><div class="error-msg">⚠️ ${text}</div></div>`;
+  } else {
+    const content = role === 'ai' ? formatResponse(text) : text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    div.innerHTML = `<div class="msg-avatar">${avatar}</div><div class="msg-content"><div class="msg-sender">${sender}</div><div class="msg-bubble">${content}</div></div>`;
+  }
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function addTyping() {
+  removeEmpty();
+  const msgs = document.getElementById('messages');
+  const div = document.createElement('div');
+  div.className = 'msg ai'; div.id = 'typingMsg';
+  div.innerHTML = '<div class="msg-avatar">🤖</div><div class="msg-content"><div class="msg-sender">MedAuth AI</div><div class="typing-indicator"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div></div>';
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+function removeTyping() { const t = document.getElementById('typingMsg'); if (t) t.remove(); }
+
+// ── Estado de carga ──
+function setLoading(val, patientIdx = null) {
+  isLoading = val;
+  document.getElementById('sendBtn').disabled = val;
+  document.querySelectorAll('.patient-btn').forEach(b => b.disabled = val);
+  if (patientIdx !== null) {
+    const spinner = document.getElementById('spin-' + patientIdx);
+    if (spinner) spinner.style.display = val ? 'block' : 'none';
+  }
+}
+
+// ── Enviar mensaje ──
+async function sendMessage(queryOverride, patientIdx = null) {
+  if (isLoading) return;
+  const input = document.getElementById('chatInput');
+  const query = queryOverride || input.value.trim();
+  if (!query) return;
+
+  if (!queryOverride) { input.value = ''; input.style.height = 'auto'; }
+
+  // No mostramos el query crudo del paciente (tiene datos técnicos), mostramos texto amigable
+  const displayText = patientIdx !== null
+    ? `Solicitud de pre-autorización para ${PATIENTS[patientIdx].name}`
+    : query;
+
+  addMessage('user', displayText);
+  addTyping();
+  setLoading(true, patientIdx);
+
+  try {
+    const answer = await callProxy(query);
+    removeTyping();
+    addMessage('ai', answer);
+  } catch (err) {
+    removeTyping();
+    addMessage('ai', err.message, true);
+  } finally {
+    setLoading(false, patientIdx);
+  }
+}
+
+function quickPrompt(text) {
+  document.getElementById('chatInput').value = text;
+  sendMessage();
+}
+
+function handleKey(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }
+function autoResize(el) { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 120) + 'px'; }
+
+function clearChat() {
+  conversationId = null;
+  document.querySelectorAll('.patient-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('messages').innerHTML = `
+    <div class="empty-state" id="emptyState">
+      <div class="empty-icon">🏥</div>
+      <div class="empty-title">Listo para auditar</div>
+      <div class="empty-sub">Selecciona un paciente para iniciar la pre-autorización.</div>
+    </div>`;
+}
+
+initPatients();
+</script>
+</body>
+</html>
